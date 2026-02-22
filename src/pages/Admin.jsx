@@ -1,17 +1,18 @@
 import { useState, useEffect } from 'react';
 import { useProducts } from '../context/ProductContext';
 import { useNavigate } from 'react-router-dom';
-import { PlusCircle, Upload, Trash2, Edit, Layout, Settings, LogOut, Shield, ScanBarcode, Camera, X, Layers, Plus, Store, Palette, Phone, MapPin, Facebook, Instagram, Video } from 'lucide-react';
+import { PlusCircle, Upload, Trash2, Edit, Layout, Settings, LogOut, Shield, ScanBarcode, Camera, X, Layers, Plus, Store, Palette, Phone, MapPin, Facebook, Instagram, Video, Zap } from 'lucide-react';
 import { useZxing } from "react-zxing";
 
-// 🔥 دالة ضغط الصور (مهمة جداً للمنتجات الجديدة) 🔥
-const resizeImage = (src) => {
+// 🔥 دالة الضغط الخارق (السر الجديد للسرعة) 🔥
+// تقوم بتحويل الصور إلى صيغة WebP الخفيفة جداً وتصغير العرض إلى 400 بكسل
+const superResizeImage = (src) => {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.src = src;
     img.onload = () => {
       const canvas = document.createElement('canvas');
-      const MAX_WIDTH = 800;
+      const MAX_WIDTH = 400; // تصغير العرض لتخفيف الحجم جداً
       let width = img.width;
       let height = img.height;
       if (width > MAX_WIDTH) {
@@ -22,7 +23,8 @@ const resizeImage = (src) => {
       canvas.height = height;
       const ctx = canvas.getContext('2d');
       ctx.drawImage(img, 0, 0, width, height);
-      resolve(canvas.toDataURL('image/jpeg', 0.7)); 
+      // 🔥 تحويل الصورة إلى WebP بجودة 50% (حجمها سيكون كيلوبايتات معدودة!)
+      resolve(canvas.toDataURL('image/webp', 0.5)); 
     };
     img.onerror = (err) => reject(err);
   });
@@ -41,6 +43,10 @@ export default function Admin() {
   const [currentId, setCurrentId] = useState(null);
   const [showCamera, setShowCamera] = useState(false);
   
+  // حالة عملية التحسين الخارق
+  const [isOptimizing, setIsOptimizing] = useState(false);
+  const [optimizeProgress, setOptimizeProgress] = useState("");
+
   const initialForm = { title: '', price: '', quantity: '', description: '', image: '', image2: '', category: '', barcode: '' };
   const [formData, setFormData] = useState(initialForm);
   const [adminForm, setAdminForm] = useState(adminConfig);
@@ -55,14 +61,13 @@ export default function Admin() {
   useEffect(() => { if (theme) setThemeForm(theme); }, [theme]);
   useEffect(() => { if (footerData) setFooterForm(footerData); }, [footerData]);
 
-  // ✅ دوال الرفع (ما زالت تستخدم الضغط التلقائي)
   const handleImageUploadWithCompression = async (e, setter, currentData) => {
     const file = e.target.files[0];
     if (file) {
       const reader = new FileReader();
       reader.onload = async (event) => {
         try {
-          const compressed = await resizeImage(event.target.result);
+          const compressed = await superResizeImage(event.target.result);
           setter({ ...currentData, image: compressed });
         } catch (error) { console.error(error); }
       };
@@ -76,7 +81,7 @@ export default function Admin() {
       const reader = new FileReader();
       reader.onload = async (event) => {
         try {
-          const compressed = await resizeImage(event.target.result);
+          const compressed = await superResizeImage(event.target.result);
           setFormData(prev => ({ ...prev, [fieldName]: compressed }));
         } catch (error) { console.error(error); }
       };
@@ -86,6 +91,52 @@ export default function Admin() {
   
   const handleLogoUpload = (e) => handleImageUploadWithCompression(e, setStoreForm, storeForm);
   const handleHeroUpload = (e) => handleImageUploadWithCompression(e, setHeroForm, heroForm);
+
+  // 🔥🔥🔥 دالة الضغط الخارق لكل المنتجات القديمة 🔥🔥🔥
+  const superOptimizeAllProducts = async () => {
+    if (!window.confirm("سيتم ضغط جميع صور المنتجات بشكل خارق (WebP) لتسريع الموقع وجعله يفتح في ثانية واحدة. هل أنت متأكد؟")) return;
+    
+    setIsOptimizing(true);
+    let count = 0;
+    const total = products.length;
+
+    for (let product of products) {
+      setOptimizeProgress(`جاري المعالجة الخارقة للمنتج ${count + 1} من ${total}...`);
+      let updates = {};
+      let needsUpdate = false;
+
+      // فحص وتحويل الصورة الأولى
+      if (product.image && product.image.startsWith('data:image')) {
+        try {
+            const compressed = await superResizeImage(product.image);
+            if (product.image !== compressed) {
+                updates.image = compressed;
+                needsUpdate = true;
+            }
+        } catch (e) { console.error("Error optimizing image 1", e); }
+      }
+
+      // فحص وتحويل الصورة الثانية
+      if (product.image2 && product.image2.startsWith('data:image')) {
+        try {
+            const compressed2 = await superResizeImage(product.image2);
+            if (product.image2 !== compressed2) {
+                updates.image2 = compressed2;
+                needsUpdate = true;
+            }
+        } catch (e) { console.error("Error optimizing image 2", e); }
+      }
+
+      if (needsUpdate) {
+        await updateProduct(product.id, updates);
+      }
+      count++;
+    }
+
+    setIsOptimizing(false);
+    setOptimizeProgress("");
+    alert("✅ اكتمل الضغط الخارق بنجاح! الموقع الآن صاروخ 🚀");
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -120,6 +171,22 @@ export default function Admin() {
             <input className="w-full p-2 border rounded" value={adminForm.password} onChange={e => setAdminForm({...adminForm, password: e.target.value})} placeholder="الرقم السري"/>
             <input className="w-full p-2 border rounded" value={adminForm.phone} onChange={e => setAdminForm({...adminForm, phone: e.target.value})} placeholder="رقم الواتساب"/>
             <button onClick={() => { updateAdminCredentials(adminForm.username, adminForm.password, adminForm.phone); alert("تم الحفظ!"); }} className="bg-gray-800 text-white py-2 px-4 rounded w-full">حفظ البيانات</button>
+            
+            {/* 🔥 زر الضغط الخارق الجديد 🔥 */}
+            <div className="mt-6 pt-4 border-t">
+                <h3 className="font-bold text-sm text-red-600 mb-2 flex items-center gap-1"><Zap size={16}/> حل مشكلة البطء</h3>
+                <button 
+                  onClick={superOptimizeAllProducts} 
+                  disabled={isOptimizing}
+                  className={`w-full py-3 px-4 rounded-lg font-bold flex items-center justify-center gap-2 transition ${isOptimizing ? 'bg-gray-300 text-gray-600 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700 text-white shadow-lg'}`}
+                >
+                  <Zap size={20} fill="currentColor" />
+                  {isOptimizing ? "جاري المعالجة الخارقة..." : "ضغط خارق لكل الصور (تسريع الموقع)"}
+                </button>
+                {isOptimizing && <p className="text-xs text-center text-red-600 mt-2 font-bold animate-pulse">{optimizeProgress}</p>}
+                <p className="text-[10px] text-gray-400 mt-2 text-center">اضغط هذا الزر مرة واحدة لتقليل حجم البيانات وجعل المتجر يفتح بثانية واحدة.</p>
+            </div>
+
           </div>
         </div>
 

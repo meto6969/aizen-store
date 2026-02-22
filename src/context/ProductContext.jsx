@@ -6,7 +6,7 @@ const ProductContext = createContext();
 
 export const ProductProvider = ({ children }) => {
   
-  // 🔥 1. محاولة جلب المنتجات من ذاكرة الهاتف أولاً (للتحميل الفوري)
+  // التخزين السريع (Caching)
   const [products, setProducts] = useState(() => {
     try {
       const cached = localStorage.getItem('fast_store_products');
@@ -17,10 +17,7 @@ export const ProductProvider = ({ children }) => {
   });
 
   const [categories, setCategories] = useState(["إلكترونيات", "مجوهرات", "ملابس"]);
-  
-  // 🔥 2. لا نظهر شاشة التحميل إذا كانت المنتجات موجودة مسبقاً في الذاكرة
   const [loading, setLoading] = useState(products.length === 0);
-  
   const [searchQuery, setSearchQuery] = useState("");
   
   const [hero, setHero] = useState({ title: "تسوق بذكاء", subtitle: "وتميز بأسلوبك", desc: "اكتشف تشكيلة واسعة...", image: "" });
@@ -33,21 +30,13 @@ export const ProductProvider = ({ children }) => {
 
   useEffect(() => {
     const dbRef = ref(db);
-    // جلب البيانات من فايربيس في الخلفية
     onValue(dbRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
         if (data.products) {
           const parsedProducts = Object.entries(data.products).map(([id, val]) => ({ id, ...val }));
           setProducts(parsedProducts);
-          
-          // 🔥 3. حفظ المنتجات الجديدة في ذاكرة الهاتف للزيارة القادمة
-          try {
-            // حفظ نسخة مصغرة لتجنب امتلاء الذاكرة
-            localStorage.setItem('fast_store_products', JSON.stringify(parsedProducts));
-          } catch (e) {
-            console.warn("Storage quota exceeded, caching skipped.");
-          }
+          try { localStorage.setItem('fast_store_products', JSON.stringify(parsedProducts)); } catch (e) {}
         } else {
           setProducts([]);
         }
@@ -57,9 +46,12 @@ export const ProductProvider = ({ children }) => {
         if (data.storeInfo) setStoreInfo(data.storeInfo);
         if (data.theme) setTheme(data.theme);
         if (data.footer) setFooterData(data.footer);
+        
+        // 🔥 التعديل هنا: جلب رقم الواتساب من قاعدة البيانات للزبون 🔥
+        if (data.adminPhone) {
+          setAdminConfig(prev => ({ ...prev, phone: data.adminPhone }));
+        }
       }
-      
-      // إخفاء شاشة التحميل بمجرد وصول البيانات
       setLoading(false);
     });
   }, []);
@@ -77,7 +69,16 @@ export const ProductProvider = ({ children }) => {
 
   const login = (u, p) => { if (u === adminConfig.username && p === adminConfig.password) { setIsAuth(true); localStorage.setItem('is_auth', 'true'); return true; } return false; };
   const logout = () => { setIsAuth(false); localStorage.removeItem('is_auth'); };
-  const updateAdminCredentials = (u, p, ph) => { const cfg = { username: u, password: p, phone: ph }; setAdminConfig(cfg); localStorage.setItem('admin_config', JSON.stringify(cfg)); };
+  
+  // 🔥 التعديل هنا: رفع الرقم لقاعدة البيانات عند حفظ الإعدادات 🔥
+  const updateAdminCredentials = (u, p, ph) => { 
+    const cfg = { username: u, password: p, phone: ph }; 
+    setAdminConfig(cfg); 
+    localStorage.setItem('admin_config', JSON.stringify(cfg)); 
+    
+    // رفع الرقم للفايربيس ليقرأه الزبون
+    set(ref(db, 'adminPhone'), ph); 
+  };
 
   return (
     <ProductContext.Provider value={{ 
